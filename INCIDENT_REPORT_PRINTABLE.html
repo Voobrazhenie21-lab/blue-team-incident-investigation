@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Blue Team Incident Investigation & DFIR Report — Aleksei Zharkou</title>
+  <title>Отчёт по расследованию инцидента ИБ (Blue Team / DFIR — acme.skb) — Алексей Жарков</title>
   <style>
     :root {
       --primary: #0f172a;
@@ -29,16 +29,16 @@
     }
 
     .report-sheet {
-      max-width: 940px;
+      max-width: 960px;
       margin: 0 auto;
       background: var(--card-bg);
-      padding: 48px 56px;
+      padding: 44px 52px;
       border-radius: 8px;
       box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
     }
 
     .print-bar {
-      max-width: 940px;
+      max-width: 960px;
       margin: 0 auto 16px;
       display: flex;
       justify-content: space-between;
@@ -58,9 +58,7 @@
       margin: 0 4px;
     }
 
-    .print-bar a:hover {
-      text-decoration: underline;
-    }
+    .print-bar a:hover { text-decoration: underline; }
 
     .print-btn {
       background: var(--secondary);
@@ -82,7 +80,7 @@
     /* Header */
     .report-header {
       border-bottom: 3px solid var(--primary);
-      padding-bottom: 24px;
+      padding-bottom: 20px;
       margin-bottom: 24px;
     }
 
@@ -103,23 +101,21 @@
     }
     .tag-amber { background: #fee2e2; color: #991b1b; }
     .tag-blue { background: #e0f2fe; color: #0369a1; }
-    .tag-green { background: #dcfce7; color: #166534; }
     .tag-purple { background: #f3e8ff; color: #7e22ce; }
 
     h1 {
-      font-size: 26px;
+      font-size: 24px;
       font-weight: 800;
       color: var(--primary);
       line-height: 1.25;
       margin-bottom: 6px;
-      letter-spacing: -0.5px;
     }
 
     .sub-title {
-      font-size: 15px;
+      font-size: 14.5px;
       color: var(--secondary);
       font-weight: 600;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }
 
     .meta-grid {
@@ -129,45 +125,44 @@
       background: #f1f5f9;
       padding: 14px 18px;
       border-radius: 6px;
-      font-size: 12.5px;
+      font-size: 12px;
     }
     .meta-grid strong { color: var(--primary); }
 
-    /* Sections */
-    section { margin-top: 28px; }
+    section { margin-top: 26px; }
     h2 {
-      font-size: 15px;
+      font-size: 14.5px;
       text-transform: uppercase;
-      letter-spacing: 0.8px;
+      letter-spacing: 0.6px;
       color: var(--primary);
       border-bottom: 2px solid var(--border);
-      padding-bottom: 6px;
-      margin-bottom: 14px;
+      padding-bottom: 5px;
+      margin-bottom: 12px;
       font-weight: 800;
     }
 
     h3 {
-      font-size: 13.5px;
+      font-size: 13px;
       color: var(--primary);
-      margin-top: 16px;
-      margin-bottom: 8px;
+      margin-top: 14px;
+      margin-bottom: 6px;
       font-weight: 700;
     }
 
-    p { margin-bottom: 10px; font-size: 12.5px; color: var(--text); }
+    p { margin-bottom: 8px; font-size: 12.5px; }
 
-    /* Tables */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 12px 0 18px;
-      font-size: 12px;
+      margin: 10px 0 16px;
+      font-size: 11.5px;
     }
 
     th, td {
       border: 1px solid var(--border);
-      padding: 8px 12px;
+      padding: 7px 10px;
       text-align: left;
+      vertical-align: top;
     }
 
     th {
@@ -176,368 +171,308 @@
       font-weight: 700;
     }
 
-    /* Badges */
     .sev-badge {
       display: inline-block;
-      font-size: 10.5px;
+      font-size: 10px;
       font-weight: 800;
-      padding: 2px 7px;
+      padding: 2px 6px;
       border-radius: 4px;
       text-transform: uppercase;
     }
     .sev-crit { background: #fee2e2; color: #991b1b; }
-    .sev-high { background: #ffedd5; color: #9a3412; }
-    .sev-med { background: #fef3c7; color: #92400e; }
-    .sev-low { background: #dcfce7; color: #166534; }
-
-    /* Code blocks */
-    pre {
-      background: #0f172a;
-      color: #e2e8f0;
-      padding: 12px 16px;
-      border-radius: 6px;
-      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-      font-size: 11.5px;
-      overflow-x: auto;
-      margin: 8px 0 12px;
-      white-space: pre-wrap;
-    }
 
     .verdict-box {
       border-radius: 6px;
-      padding: 14px 18px;
-      margin: 16px 0;
-      font-size: 12.5px;
-    }
-    .verdict-danger {
+      padding: 12px 16px;
+      margin: 12px 0;
+      font-size: 12px;
       background: #fef2f2;
       border-left: 4px solid var(--danger);
       color: #991b1b;
     }
-    .verdict-success {
-      background: #f0fdf4;
-      border-left: 4px solid var(--success);
-      color: #166534;
-    }
 
-    .timeline-item {
-      display: flex;
-      gap: 14px;
-      padding: 10px 0;
-      border-bottom: 1px solid #f1f5f9;
-      font-size: 12px;
-    }
-    .timeline-time {
-      min-width: 130px;
-      font-weight: 700;
-      color: var(--secondary);
-    }
-    .timeline-desc {
-      flex-grow: 1;
+    code {
+      background: #f1f5f9;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 11px;
     }
 
     @media print {
       body { background: #fff; padding: 0; }
       .report-sheet { box-shadow: none; padding: 0; max-width: 100%; }
-      @page { size: A4; margin: 12mm 15mm; }
+      @page { size: A4; margin: 12mm 14mm; }
       .no-print { display: none !important; }
-      .page-break { page-break-before: always; }
       a { text-decoration: none !important; color: var(--primary) !important; }
     }
   </style>
 </head>
 <body>
 
-  <!-- TOP BAR -->
   <div class="print-bar no-print">
     <div>
-      🛡️ <strong>Blue Team Incident Report</strong> &bull; Lead: <strong>Aleksei Zharkou</strong> &bull; 
-      <a href="https://github.com/Voobrazhenie21-lab/blue-team-incident-investigation" target="_blank">[GitHub]</a> &bull; 
-      <a href="https://voobrazhenie21-lab.github.io/enterprise-pentest-report/" target="_blank">[Pentest Report]</a> &bull; 
+      🛡️ <strong>Blue Team DFIR Report (acme.skb)</strong> &bull; Автор: <strong>Алексей Жарков</strong> &bull;
+      <a href="https://github.com/Voobrazhenie21-lab/blue-team-incident-investigation" target="_blank">[GitHub]</a> &bull;
+      <a href="https://voobrazhenie21-lab.github.io/enterprise-pentest-report/" target="_blank">[Pentest Report]</a> &bull;
       <a href="https://voobrazhenie21-lab.github.io/pipeshield/" target="_blank">[PipeShield]</a>
     </div>
     <button class="print-btn" onclick="window.print()">
-      🖨️ Сохранить как PDF / Печать
+      🖨️ Сохранить в PDF / Печать
     </button>
   </div>
 
   <div class="report-sheet">
 
-    <!-- HEADER -->
     <header class="report-header">
       <div class="tag-group">
-        <span class="tag tag-amber">TLP:AMBER &bull; Confidential</span>
-        <span class="tag tag-blue">Standard: NIST SP 800-61r2</span>
-        <span class="tag tag-purple">SIEM: Wazuh 4.x</span>
-        <span class="tag tag-green">Status: Fully Contained</span>
+        <span class="tag tag-amber">TLP:AMBER &bull; Конфиденциально</span>
+        <span class="tag tag-blue">Методология: NIST SP 800-61r2 / DFIR</span>
+        <span class="tag tag-purple">SIEM: Wazuh 4.3.9</span>
       </div>
-      <h1>Enterprise Incident Investigation & Forensic Analysis Report</h1>
-      <div class="sub-title">Multi-Stage Cloud Infrastructure Intrusion, Defense Evasion & Lateral Movement Investigation</div>
+      <h1>Отчёт о расследовании инцидента информационной безопасности (Blue Team)</h1>
+      <div class="sub-title">Криминалистическое исследование компрометации домена acme.skb и утечки данных</div>
 
       <div class="meta-grid">
-        <div><strong>Incident Ticket:</strong> INC-2026-1008-01</div>
-        <div><strong>Lead Investigator:</strong> Aleksei Zharkou (SOC Analyst / Incident Responder)</div>
-        <div><strong>Target Environment:</strong> CyberSecSkill Cloud Enterprise (VK Cloud)</div>
-        <div><strong>Date of Assessment:</strong> October 2026</div>
-        <div><strong>Affected Assets:</strong> web_server (10.0.10.5), ws01 (10.0.30.53)</div>
-        <div><strong>Overall Severity:</strong> <span class="sev-badge sev-high">High Risk (Contained)</span></div>
+        <div><strong>Идентификатор кейса:</strong> INC-ACME-2023-0419</div>
+        <div><strong>Ведущий специалист:</strong> Алексей Жарков (SOC Analyst / DFIR)</div>
+        <div><strong>Исследуемый периметр:</strong> Домен acme.skb (DMZ, Servers, Users)</div>
+        <div><strong>Временное окно атаки:</strong> 18.04.2023 12:03 – 19.04.2023 22:32 (МСК)</div>
+        <div><strong>Узел атакующего:</strong> kali (10.0.10.254, сегмент DMZ)</div>
+        <div><strong>Критичность инцидента:</strong> <span class="sev-badge sev-crit">CRITICAL (Полная компрометация домена)</span></div>
       </div>
     </header>
 
-    <!-- EXECUTIVE SUMMARY -->
+    <!-- ШАГ 1 -->
     <section>
-      <h2>1. Executive Summary & Verdict</h2>
-      <p>
-        In October 2026, the Security Operations Center (SOC) identified critical security events within the corporate cloud environment: unauthenticated inbound web shell execution on the DMZ perimeter and subsequent termination of Windows Defender real-time monitoring on an internal corporate workstation.
-      </p>
-
-      <div class="verdict-box verdict-danger">
-        <strong>🔴 Fact of System Compromise: PROVEN</strong><br>
-        The threat actor successfully achieved Remote Code Execution (RCE) on <code>web_server</code> (10.0.10.5) via an unvalidated file upload vulnerability, pivoted into the internal client subnet via Remote Desktop Protocol (RDP) using compromised credentials, disabled endpoint antivirus defenses, and spawned unauthorized command-and-control (C2) payloads.
-      </div>
-
-      <div class="verdict-box verdict-success">
-        <strong>🟢 Fact of Data Exfiltration: NOT CONFIRMED / PREVENTED</strong><br>
-        Deep forensic analysis of Wazuh File Integrity Monitoring (FIM), Sysmon telemetry, network socket telemetry, and database logs confirms that the threat was successfully isolated before data archiving, staging, or external exfiltration of sensitive business databases occurred.
-      </div>
-    </section>
-
-    <!-- INFRASTRUCTURE -->
-    <section>
-      <h2>2. Investigated Infrastructure Topology</h2>
+      <h2>Шаг 1. Описание исследуемой инфраструктуры</h2>
       <table>
         <thead>
           <tr>
             <th>Hostname</th>
-            <th>IP Address</th>
-            <th>OS / Platform</th>
-            <th>Role in Enterprise Infrastructure</th>
+            <th>IP-адрес</th>
+            <th>Операционная система и стек</th>
+            <th>Роль в инфраструктуре</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><strong>vy</strong></td>
-            <td>10.0.10.250 (Ext: 212.233.92.6)</td>
-            <td>Linux VyOS</td>
-            <td>Perimeter Router, NAT Gateway & Inter-VLAN Firewall</td>
-          </tr>
-          <tr>
-            <td><strong>web_server</strong></td>
+            <td><strong>web-server</strong></td>
             <td>10.0.10.5</td>
-            <td>Ubuntu Linux 22.04</td>
-            <td>Corporate Web Server (Nginx / PHP) &bull; DMZ Subnet (10.0.10.0/24)</td>
-          </tr>
-          <tr>
-            <td><strong>wazuh</strong></td>
-            <td>10.0.20.61</td>
-            <td>Ubuntu Linux 22.04</td>
-            <td>Centralized Wazuh SIEM Manager & OpenSearch Dashboard</td>
-          </tr>
-          <tr>
-            <td><strong>dc01</strong></td>
-            <td>10.0.20.51</td>
-            <td>Windows Server 2022</td>
-            <td>Primary Domain Controller (Active Directory DS &bull; CORP.LOCAL)</td>
+            <td>Ubuntu 20.04.1 LTS (5.4.0-42), Apache 2.4.57 (сборка с <code>-DBIG_SECURITY_HOLE</code> от root), DVWA, MariaDB</td>
+            <td>Веб-сервер сегмента DMZ. <strong>Точка входа атакующего.</strong></td>
           </tr>
           <tr>
             <td><strong>ws01</strong></td>
             <td>10.0.30.53</td>
-            <td>Windows 10 Enterprise</td>
-            <td>Employee Workstation &bull; Internal Client Subnet (10.0.30.0/24)</td>
+            <td>Windows 10 (сборка 17763), в домене <code>acme.skb</code>, Microsoft Defender</td>
+            <td>Доменная рабочая станция пользователей.</td>
           </tr>
           <tr>
-            <td><strong>kali</strong></td>
-            <td>10.0.30.12</td>
-            <td>Kali Linux</td>
-            <td>Security Analysis & Verification Host</td>
+            <td><strong>dc01</strong></td>
+            <td>10.0.20.51</td>
+            <td>Windows Server 2019 (сборка 17763)</td>
+            <td>Контроллер домена <code>acme.skb</code> (AD DS, DNS).</td>
+          </tr>
+          <tr>
+            <td><strong>wazuh</strong></td>
+            <td>10.0.20.61</td>
+            <td>Ubuntu, Wazuh 4.3.9 (менеджер + индексер + дашборд)</td>
+            <td>СЗИ: SIEM — централизованный сбор событий с агентов 001–004.</td>
+          </tr>
+          <tr>
+            <td><strong>wg</strong></td>
+            <td>10.0.10.250</td>
+            <td>Linux</td>
+            <td>VPN-шлюз доступа в лабораторию (в атаке не участвовал).</td>
+          </tr>
+          <tr>
+            <td><strong>kali (Attacker)</strong></td>
+            <td>10.0.10.254</td>
+            <td>Kali Linux (сегмент DMZ)</td>
+            <td><strong>Машина атакующего</strong> (деанонимизирована по NTLM, ключу <code>kali@kali</code> и пути <code>\\tsclient\_home_kali_Documents_Brute-RDP.py_rdpshare_</code>).</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- TIMELINE -->
+    <!-- ШАГ 2 -->
     <section>
-      <h2>3. Chronological Attack Timeline</h2>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 14:15:22</div>
-        <div class="timeline-desc"><strong>Initial Access:</strong> Threat actor executes HTTP POST uploading <code>system_check.php</code> to web uploads directory.</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 14:16:04</div>
-        <div class="timeline-desc"><strong>Execution:</strong> First interactive command execution via web shell (<code>cmd=id</code>, <code>cat /etc/passwd</code>).</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 14:35:40</div>
-        <div class="timeline-desc"><strong>Discovery:</strong> Attacker extracts credentials from <code>config.php</code> and executes ping sweep of internal subnet 10.0.30.0/24.</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 15:35:10</div>
-        <div class="timeline-desc"><strong>Lateral Movement:</strong> RDP session established to <code>ws01</code> (10.0.30.53) originating from compromised <code>web_server</code>.</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 15:42:18</div>
-        <div class="timeline-desc"><strong>Defense Evasion:</strong> Windows Defender real-time protection terminated via PowerShell (Event ID 5001).</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 15:48:30</div>
-        <div class="timeline-desc"><strong>Persistence & C2:</strong> Malicious binary <code>agent_update.exe</code> dropped into Temp folder and spawned (Reverse TCP to 10.0.30.12:4444).</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 16:05:44</div>
-        <div class="timeline-desc"><strong>Credential Access:</strong> Execution of Mimikatz (<code>mimi.exe</code>) attempting LSASS process memory extraction.</div>
-      </div>
-      <div class="timeline-item">
-        <div class="timeline-time">08.10.2026 16:30:00</div>
-        <div class="timeline-desc"><strong>Containment:</strong> Incident Responder isolates affected hosts, terminates C2 processes, and invalidates compromised credentials.</div>
-      </div>
-    </section>
-
-    <!-- MALWARE & IOCS -->
-    <section>
-      <h2>4. Malicious Artifacts & Indicators of Compromise (IoCs)</h2>
+      <h2>Шаг 2. Собранные криминалистические данные</h2>
       <table>
         <thead>
           <tr>
-            <th>Artifact Name</th>
-            <th>Location / File Path</th>
-            <th>SHA-256 Hash</th>
-            <th>Classification & Purpose</th>
-            <th>C2 / Destination</th>
+            <th>Хост</th>
+            <th>Извлечённые источники и артефакты форензики</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>system_check.php</code></td>
-            <td>/var/www/html/uploads/</td>
-            <td><code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b...</code></td>
-            <td>Web Shell (RCE)</td>
-            <td>HTTP Caller (212.233.92.100)</td>
+            <td><strong>web-server</strong></td>
+            <td><code>/var/log/auth.log.1</code> (SSH), <code>/etc/apache2/logs/dummy-host-access_log</code>, <code>/root/.bash_history</code>, <code>last -F</code> (wtmp), <code>/var/log/dpkg.log.1</code>, образец ВПО <code>backdoor.php</code> (MD5/SHA256), правило Wazuh 506.</td>
           </tr>
           <tr>
-            <td><code>disable_av.ps1</code></td>
-            <td>C:\Users\student\Downloads\</td>
-            <td><code>4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328...</code></td>
-            <td>Defense Evasion Script</td>
-            <td>Local execution</td>
+            <td><strong>ws01</strong></td>
+            <td>Журнал <code>Security</code> (4624, 4625, 1102), <code>Microsoft Defender/Operational</code> (5001, 5007, 1116, 1117), алерты Wazuh (60204, 92652), отчёт <code>WER AppCrash (CVE-2019-0623)</code>, <code>C:\Users\Public\Documents</code>.</td>
           </tr>
           <tr>
-            <td><code>agent_update.exe</code></td>
-            <td>C:\Users\student\AppData\Local\Temp\</td>
-            <td><code>8f434346648f6b96df89dda901c5176b10e6d0ceec3e4...</code></td>
-            <td>Reverse Shell / C2 Agent</td>
-            <td>10.0.30.12:4444 (TCP)</td>
+            <td><strong>dc01</strong></td>
+            <td>Журнал <code>Security</code> (4624, 4662), <code>Get-ADUser</code> (SID), корзина <code>C:\$Recycle.Bin</code> (очистка от SID *-1107), секретный файл <code>TOP SECRET!.txt</code> + LNK в <code>Recent</code>, правило Wazuh 92652.</td>
           </tr>
           <tr>
-            <td><code>mimi.exe</code></td>
-            <td>C:\Users\student\AppData\Local\Temp\</td>
-            <td><code>a35f5a898dfefda4458f01b1e8a93945c92be2c733367...</code></td>
-            <td>Credential Dumper (Mimikatz)</td>
-            <td>Local execution</td>
+            <td><strong>wazuh</strong></td>
+            <td>Дашборд Security Events (DQL <code>rule.level &gt;= 7</code>), сработки правил 5104 (promiscuous mode), 60204 (брутфорс), 92652 (Pass-the-Hash), 506 (останов агента).</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- MITRE MATRIX -->
+    <!-- ШАГ 3 -->
     <section>
-      <h2>5. MITRE ATT&CK Framework Mapping</h2>
+      <h2>Шаг 3. Хронология вредоносных событий (Таймлайн МСК, UTC+3)</h2>
       <table>
         <thead>
           <tr>
-            <th>Tactic</th>
-            <th>Technique ID</th>
-            <th>Technique Name</th>
-            <th>Evidence / Mechanism</th>
+            <th>Дата и время</th>
+            <th>Хост</th>
+            <th>Описание события</th>
+            <th>Квалификация и MITRE ATT&CK</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td>Initial Access</td>
-            <td>T1190</td>
-            <td>Exploit Public-Facing Application</td>
-            <td>File upload vulnerability in web application yielding PHP Web Shell</td>
+            <td>18.04.2023 12:03</td>
+            <td>wazuh</td>
+            <td>Интерфейс переведён в <code>promiscuous mode</code> (правило 5104)</td>
+            <td>Сетевой сниффинг (T1040)</td>
           </tr>
           <tr>
-            <td>Execution</td>
-            <td>T1059.004</td>
-            <td>Unix Shell</td>
-            <td>Interactive command execution under www-data context</td>
+            <td>19.04.2023 21:30–21:47</td>
+            <td>web-server</td>
+            <td>SSH-входы <code>ubuntu</code> с 10.0.10.254; повышение прав через <code>sudo -s</code></td>
+            <td>Начальный доступ и LPE до root (T1078)</td>
           </tr>
           <tr>
-            <td>Lateral Movement</td>
-            <td>T1021.001</td>
-            <td>Remote Desktop Protocol</td>
-            <td>RDP pivot from DMZ web server to workstation ws01 (10.0.30.53)</td>
+            <td>19.04.2023 21:52:47</td>
+            <td>web-server</td>
+            <td><code>POST /vulnerabilities/upload/</code> — загрузка <code>backdoor.php</code> в DVWA</td>
+            <td>Эксплуатация File Upload (T1190), ВПО №1</td>
           </tr>
           <tr>
-            <td>Defense Evasion</td>
-            <td>T1562.001</td>
-            <td>Disable or Modify Tools</td>
-            <td>PowerShell: Set-MpPreference -DisableRealtimeMonitoring (Event 5001)</td>
+            <td>19.04.2023 21:53–21:55</td>
+            <td>web-server</td>
+            <td>Команды веб-шелла: <code>whoami</code>, <code>cat /etc/passwd</code>, <code>cat /etc/shadow</code>; запись ключа <code>kali@kali</code> в <code>/root/.ssh/authorized_keys</code></td>
+            <td>Кража хешей паролей (T1003) и закрепление по SSH (T1098.004)</td>
           </tr>
           <tr>
-            <td>Command and Control</td>
-            <td>T1071.001</td>
-            <td>Application Layer Protocol</td>
-            <td>Outbound reverse TCP shell spawned on port 4444</td>
+            <td>19.04.2023 22:00–22:20</td>
+            <td>ws01</td>
+            <td>28 неудачных NTLM-входов <code>localadmin</code> (4625) с 10.0.10.5 (правило 60204); монтирование диска <code>\\tsclient\_home_kali_Documents_Brute-RDP.py_rdpshare_</code></td>
+            <td>Брутфорс RDP через SSH-туннель (T1110) и доставка ВПО (T1105)</td>
           </tr>
           <tr>
-            <td>Credential Access</td>
-            <td>T1003.001</td>
-            <td>LSASS Memory Dumping</td>
-            <td>Attempted execution of Mimikatz (mimi.exe) for credential theft</td>
+            <td>19.04.2023 22:08–22:09</td>
+            <td>ws01</td>
+            <td>Детекты Defender: <code>HackTool:Win32/Mimikatz.D</code>, <code>Trojan:Win32/Sabsik</code> (<code>cve-2019-1458.exe</code>) + AppCrash <code>CVE-2019-0623.exe</code></td>
+            <td>Попытка дампа LSASS (T1003) и эксплуатации LPE Win32k (T1068)</td>
+          </tr>
+          <tr>
+            <td>19.04.2023 22:12:12</td>
+            <td>ws01</td>
+            <td>Отключена защита в реальном времени Microsoft Defender (событие 5001) и SpyNet (5007)</td>
+            <td>Ослабление защиты (Defense Evasion, T1562.001)</td>
+          </tr>
+          <tr>
+            <td>19.04.2023 22:20–22:22</td>
+            <td>ws01 / dc01</td>
+            <td>Атака Pass-the-Hash (правило 92652) и вход на контроллер домена <code>dc01</code> под <code>ACME\domainadmin</code></td>
+            <td>Перемещение по сети (T1550.002) и полный захват домена</td>
+          </tr>
+          <tr>
+            <td>19.04.2023 22:23–22:25</td>
+            <td>dc01</td>
+            <td>Очистка корзины (SID *-1107) и открытие файла <code>C:\Users\domainadmin\Desktop\TOP SECRET!.txt</code> (94 048 байт)</td>
+            <td>Заметание следов (T1070) и кража секретных данных (T1005)</td>
+          </tr>
+          <tr>
+            <td>19.04.2023 22:32:56</td>
+            <td>web-server</td>
+            <td>Принудительный останов службы агента Wazuh (правило 506)</td>
+            <td>Сокрытие следов на точке входа (T1562.001)</td>
           </tr>
         </tbody>
       </table>
     </section>
 
-    <!-- ROOT CAUSE & REMEDIATION -->
+    <!-- ШАГ 4 -->
     <section>
-      <h2>6. Root Cause Analysis & Hardening Recommendations</h2>
-      
-      <h3>Root Causes:</h3>
+      <h2>Шаг 4. Описание обнаруженных экземпляров ВПО (5 артефактов)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>№</th>
+            <th>Экземпляр ВПО</th>
+            <th>Расположение / Индикаторы (IoC)</th>
+            <th>Назначение и роль в атаке</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1</strong></td>
+            <td><code>backdoor.php</code></td>
+            <td><code>/var/www/DVWA/hackable/uploads/backdoor.php</code><br>SHA256: <code>eaa0a356da7712bf0f70f0f2a80f3044...</code></td>
+            <td>Веб-шелл (Daniel Berliner). Выполнял команды от имени <code>root</code> через <code>?c=</code>, похитил <code>/etc/shadow</code> и имплантировал SSH-ключ.</td>
+          </tr>
+          <tr>
+            <td><strong>2</strong></td>
+            <td><code>mimikatz.exe</code></td>
+            <td><code>\\tsclient\...\mimikatz.exe</code><br>Сигнатура: <code>HackTool:Win32/Mimikatz.D</code></td>
+            <td>Извлечение паролей и NTLM-хешей доменных учётных записей (<code>domainadmin</code>, <code>domainuser</code>) из памяти LSASS на <code>ws01</code>.</td>
+          </tr>
+          <tr>
+            <td><strong>3</strong></td>
+            <td><code>cve-2019-1458.exe</code></td>
+            <td><code>C:\Users\Public\Documents\CVEs\cve-2019-1458.exe</code><br>Сигнатура: <code>Trojan:Win32/Sabsik.TE.A!ml</code></td>
+            <td>Эксплойт повышения привилегий ядра Win32k (CVE-2019-1458) до уровня SYSTEM.</td>
+          </tr>
+          <tr>
+            <td><strong>4</strong></td>
+            <td><code>CVE-2019-0623.exe</code></td>
+            <td>Доказан отчётом <code>WER AppCrash_CVE-2019-0623.ex_...</code> (22:08:54)</td>
+            <td>Эксплойт локального повышения привилегий Win32k; аварийно завершился при запуске и был удалён атакующим.</td>
+          </tr>
+          <tr>
+            <td><strong>5</strong></td>
+            <td><code>Brute-RDP.py</code></td>
+            <td><code>/root/1/Brute-RDP.py</code> + словарь <code>passwords.txt</code></td>
+            <td>Скрипт словарного брутфорса RDP против <code>ws01</code> (28 попыток EventID 4625), подобравший пароль к <code>localadmin</code>.</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ШАГ 7 и 8 -->
+    <section>
+      <h2>Шаги 7–8. Причины инцидента и рекомендации по защите</h2>
       <p>
-        • <strong>DMZ Isolation Failure:</strong> Web server in DMZ possessed unrestricted routing into internal workstation subnets.<br>
-        • <strong>Absence of Tamper Protection:</strong> Windows Defender lacked GPO-enforced Tamper Protection, allowing administrative scripts to terminate protection.<br>
-        • <strong>Shared Administrative Credentials:</strong> Identical passwords used across Linux web server and Windows endpoints.
+        <strong>Ключевые причины:</strong> (1) Сборка Apache с флагом <code>-DBIG_SECURITY_HOLE</code> от имени <code>root</code> и уязвимое приложение DVWA в продуктивной сети; (2) отсутствие политики блокировки УЗ (Account Lockout) и слабые пароли; (3) отключённый Tamper Protection в Defender; (4) отсутствие сетевой изоляции между DMZ и сегментом рабочих станций/КД; (5) вход доменного администратора на пользовательскую станцию без Credential Guard и LAPS.
       </p>
+      <p>
+        <strong>Рекомендации:</strong> Удалить DVWA, переустановить Apache от непривилегированной УЗ и внедрить WAF; включить Account Lockout, сменить пароли всех УЗ и дважды сбросить пароль <code>krbtgt</code>; включить Tamper Protection, Credential Guard и LAPS через GPO; заблокировать SMB/RDP из DMZ во внутреннюю сеть и запретить <code>AllowTcpForwarding</code> в SSH; настроить Wazuh Active Response на правила 60204, 92652 и 506.
+      </p>
+    </section>
 
-      <h3>Remediation Roadmap:</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Priority</th>
-            <th>Scope</th>
-            <th>Action Item</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><strong>P1: Immediate</strong></td>
-            <td>Network / Host</td>
-            <td>Isolate compromised hosts, terminate C2 sockets, purge malicious artifacts, and rotate all administrative credentials.</td>
-          </tr>
-          <tr>
-            <td><strong>P2: Short-Term</strong></td>
-            <td>Active Directory</td>
-            <td>Enforce Tamper Protection via GPO; deploy Microsoft LAPS across all endpoints to eliminate local password reuse.</td>
-          </tr>
-          <tr>
-            <td><strong>P2: Short-Term</strong></td>
-            <td>Application</td>
-            <td>Harden web server upload directories (disable script execution) and deploy AppLocker/WDAC blocking binaries in Temp folders.</td>
-          </tr>
-          <tr>
-            <td><strong>P3: Strategic</strong></td>
-            <td>Architecture</td>
-            <td>Implement micro-segmentation at router vy prohibiting DMZ-to-Internal connections; enable Wazuh Active Response for automated isolation.</td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- ШАГ 9 -->
+    <section>
+      <h2>Шаг 9. Итоговый вывод</h2>
+      <div class="verdict-box">
+        <strong>🔴 Факт компрометации инфраструктуры и утечки данных: ДОКАЗАНЫ.</strong><br>
+        Злоумышленник с узла <code>10.0.10.254</code> полностью скомпрометировал домен <code>acme.skb</code> (от веб-сервера DMZ до контроллера домена <code>dc01</code>). Зафиксирована компрометация и эксфильтрация секретного файла <code>C:\Users\domainadmin\Desktop\TOP SECRET!.txt</code> (94 048 байт) и теневого файла хешей <code>/etc/shadow</code> через проброшенный ресурс <code>\\tsclient</code> по RDP поверх SSH-туннеля.
+      </div>
 
-      <div style="margin-top: 32px; border-top: 1px solid var(--border); padding-top: 14px; display: flex; justify-content: space-between; font-size: 12px; color: var(--muted);">
-        <div>Lead Investigator: <strong>Aleksei Zharkou</strong> (SOC Analyst / Incident Responder)</div>
-        <div>Standard: <strong>NIST SP 800-61 Rev. 2</strong></div>
+      <div style="margin-top: 24px; border-top: 1px solid var(--border); padding-top: 12px; display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted);">
+        <div>Расследование выполнил: <strong>Алексей Жарков</strong> (SOC Analyst / Blue Team)</div>
+        <div>Инфраструктура: <strong>acme.skb (Wazuh SIEM 4.3.9)</strong></div>
       </div>
     </section>
 

